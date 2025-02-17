@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>游戏与哲学</title>
+  <style>
+    body {
+      background: black;
+      color: white;
+      font-family: monospace;
+      text-align: center;
+      margin: 0;
+      padding: 0;
+    }
+    h1 {
+      margin: 20px 0;
+    }
+    .container {
+      display: flex;
+      justify-content: center;
+    }
+    .preview, .game-area {
+      margin: 10px;
+    }
+    pre {
+      font-size: 20px;
+      line-height: 1.2;
+      margin: 0 auto;
+      white-space: pre;
+    }
+  </style>
+</head>
+<body>
+  <h1>游戏与哲学</h1>
+  <div class="container">
+    <!-- 下一个方块预览区 -->
+    <div class="preview">
+      <h3>新一群同学</h3>
+      <pre id="next"></pre>
+    </div>
+    <!-- 游戏区域 -->
+    <div class="game-area">
+      <pre id="game"></pre>
+    </div>
+  </div>
+  <script>
+    // 游戏区域尺寸
+    const COLS = 10, ROWS = 20;
+    // 用二维数组保存固定下来的方块（0表示空，1表示已填充）
+    let grid = [];
+    for (let y = 0; y < ROWS; y++) {
+      grid[y] = [];
+      for (let x = 0; x < COLS; x++) {
+        grid[y][x] = 0;
+      }
+    }
+
+    // 定义7种俄罗斯方块（仅存储“出生时”相对坐标，O型不旋转）
+    const tetrominoes = [
+      { name: "I", blocks: [ [-1,0], [0,0], [1,0], [2,0] ] },
+      { name: "J", blocks: [ [-1,-1], [-1,0], [0,0], [1,0] ] },
+      { name: "L", blocks: [ [1,-1], [-1,0], [0,0], [1,0] ] },
+      { name: "O", blocks: [ [0,0], [1,0], [0,1], [1,1] ], noRotate: true },
+      { name: "S", blocks: [ [0,0], [1,0], [-1,1], [0,1] ] },
+      { name: "T", blocks: [ [0,-1], [-1,0], [0,0], [1,0] ] },
+      { name: "Z", blocks: [ [-1,0], [0,0], [0,1], [1,1] ] }
+    ];
+
+    // 当前活动的方块对象：{ piece, x, y, rotation }
+    let currentPiece = null;
+    // 下一个方块预览
+    let nextPiece = generatePiece();
+
+    // 生成一个新方块对象（用于当前或下一个方块）
+    function generatePiece() {
+      let tet = tetrominoes[Math.floor(Math.random() * tetrominoes.length)];
+      // 若存在负坐标，则整体下移
+      let minY = Math.min(...tet.blocks.map(b => b[1]));
+      return { piece: tet, x: 0, y: -minY, rotation: 0 };
+    }
+
+    // 生成新方块：当前方块来自 nextPiece，再生成一个新的 nextPiece
+    function newPiece() {
+      currentPiece = nextPiece;
+      // 设置当前方块初始位置：横向居中
+      currentPiece.x = Math.floor(COLS / 2);
+      currentPiece.rotation = 0;
+      nextPiece = generatePiece();
+    }
+
+    newPiece();
+
+    // 旋转函数：将 (x, y) 旋转 rotation 次 90°（逆时针）
+    function rotatePoint(x, y, rotation) {
+      rotation = rotation % 4;
+      if (rotation < 0) rotation += 4;
+      if (rotation === 0) return [x, y];
+      if (rotation === 1) return [-y, x];
+      if (rotation === 2) return [-x, -y];
+      if (rotation === 3) return [y, -x];
+    }
+
+    // 计算当前活动方块的所有坐标
+    function getPieceBlocks(pieceObj) {
+      const { piece, x, y, rotation } = pieceObj;
+      let blocks = [];
+      for (let i = 0; i < piece.blocks.length; i++) {
+        let block = piece.blocks[i];
+        let pos;
+        if (piece.noRotate) {
+          pos = block;
+        } else {
+          pos = rotatePoint(block[0], block[1], rotation);
+        }
+        blocks.push([x + pos[0], y + pos[1]]);
+      }
+      return blocks;
+    }
+
+    // 检查当前方块是否处于合法位置（未超出边界且不与固定方块重叠）
+    function isValidPosition(pieceObj) {
+      let blocks = getPieceBlocks(pieceObj);
+      for (let i = 0; i < blocks.length; i++) {
+        let x = blocks[i][0], y = blocks[i][1];
+        if (x < 0 || x >= COLS || y >= ROWS) {
+          return false;
+        }
+        // y 可能为负（出生时在上方），忽略这部分
+        if (y >= 0 && grid[y][x] !== 0) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    // 将当前方块固定到网格中
+    function fixPiece() {
+      let blocks = getPieceBlocks(currentPiece);
+      for (let i = 0; i < blocks.length; i++) {
+        let x = blocks[i][0], y = blocks[i][1];
+        if (y >= 0) {
+          grid[y][x] = 1;
+        }
+      }
+    }
+
+    // 检查并清除已填满的行
+    function clearLines() {
+      for (let y = ROWS - 1; y >= 0; y--) {
+        if (grid[y].every(cell => cell !== 0)) {
+          grid.splice(y, 1);
+          let newRow = new Array(COLS).fill(0);
+          grid.unshift(newRow);
+          y++; // 新插入的空行需重新检测
+        }
+      }
+    }
+
+    // 绘制游戏区域，增加外围边框（左右用 "|"，上下用 "-"，角用 "+"）
+    function draw() {
+      let display = "";
+      // 每个格子宽度为2个字符，所以边框宽度为 COLS * 2
+      const borderLine = "+" + "黑板".repeat(COLS) + "+\n";
+      const borderLine2 = "+" + "-".repeat(COLS -1 ) +"钟"+  "-".repeat(COLS -1 ) + "+\n";
+
+      display += borderLine;
+      // 计算当前活动方块位置，避免每次循环重复计算
+      let pieceBlocks = getPieceBlocks(currentPiece);
+      for (let y = 0; y < ROWS; y++) {
+        if (y <= 3 || y == ROWS - 1) display += "门";
+        else display += "墙";
+        for (let x = 0; x < COLS; x++) {
+          // 判断当前位置是否被当前活动方块占用
+          let isPiece = pieceBlocks.some(b => b[0] === x && b[1] === y);
+          display += isPiece ? "人" : (grid[y][x] ? "坐" : "  ");
+        }
+        display += "窗\n";
+      }
+      display += borderLine2;
+      document.getElementById("game").textContent = display;
+    }
+
+    // 绘制下一个方块预览（在4x4网格内居中显示）
+    function drawNext() {
+      const previewSize = 4;
+      // 计算当前预览方块的最小包围盒
+      let blocks = nextPiece.piece.blocks; // 默认旋转角度为0
+      let xs = blocks.map(b => b[0]);
+      let ys = blocks.map(b => b[1]);
+      let minX = Math.min(...xs);
+      let maxX = Math.max(...xs);
+      let minY = Math.min(...ys);
+      let maxY = Math.max(...ys);
+      let pieceWidth = maxX - minX + 1;
+      let pieceHeight = maxY - minY + 1;
+      // 计算偏移量使方块在预览网格内居中
+      let offsetX = Math.floor((previewSize - pieceWidth) / 2) - minX;
+      let offsetY = Math.floor((previewSize - pieceHeight) / 2) - minY;
+      
+      let preview = [];
+      for (let y = 0; y < previewSize; y++) {
+        let row = "";
+        for (let x = 0; x < previewSize; x++) {
+          // 如果预览方块在经过偏移后占据该单元，则显示“人”
+          let found = blocks.some(b => (b[0] + offsetX === x) && (b[1] + offsetY === y));
+          row += found ? "人" : "  ";
+        }
+        preview.push(row);
+      }
+      document.getElementById("next").textContent = preview.join("\n");
+    }
+
+    // 每个时间间隔执行一次，尝试将当前方块下移一步
+    function tick() {
+      let newPos = { ...currentPiece, y: currentPiece.y + 1 };
+      if (isValidPosition(newPos)) {
+        currentPiece.y++;
+      } else {
+        // 无法下移时固定方块，并清除满行，再生成新方块
+        fixPiece();
+        clearLines();
+        newPiece();
+        if (!isValidPosition(currentPiece)) {
+          alert("游戏结束！");
+          // 重置网格
+          grid = [];
+          for (let y = 0; y < ROWS; y++) {
+            grid[y] = [];
+            for (let x = 0; x < COLS; x++) {
+              grid[y][x] = 0;
+            }
+          }
+        }
+      }
+      draw();
+      drawNext();
+    }
+
+    // 键盘控制：← → 控制左右移动，↑ 控制旋转，↓ 加速下落
+    document.addEventListener("keydown", function(e) {
+      let newPos;
+      if (e.key === "ArrowLeft") {
+        newPos = { ...currentPiece, x: currentPiece.x - 1 };
+        if (isValidPosition(newPos)) currentPiece.x--;
+      } else if (e.key === "ArrowRight") {
+        newPos = { ...currentPiece, x: currentPiece.x + 1 };
+        if (isValidPosition(newPos)) currentPiece.x++;
+      } else if (e.key === "ArrowDown") {
+        newPos = { ...currentPiece, y: currentPiece.y + 1 };
+        if (isValidPosition(newPos)) currentPiece.y++;
+      } else if (e.key === "ArrowUp") {
+        newPos = { ...currentPiece, rotation: currentPiece.rotation + 1 };
+        if (isValidPosition(newPos)) currentPiece.rotation++;
+      }
+      draw();
+    });
+
+    // 初始化绘制
+    draw();
+    drawNext();
+    // 每500毫秒更新一次游戏状态
+    setInterval(tick, 500);
+  </script>
+</body>
+</html>
