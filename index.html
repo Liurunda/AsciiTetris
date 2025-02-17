@@ -18,6 +18,7 @@
     .container {
       display: flex;
       justify-content: center;
+      margin-bottom: 80px; /* 为底部按钮留出空间 */
     }
     .preview, .game-area {
       margin: 10px;
@@ -28,6 +29,20 @@
       margin: 0 auto;
       white-space: pre;
     }
+    /* 固定在屏幕底部的按钮区 */
+    .controls {
+      position: fixed;
+      bottom: 0;
+      width: 100%;
+      text-align: center;
+      background: #222;
+      padding: 10px 0;
+    }
+    .controls button {
+      font-size: 20px;
+      margin: 0 10px;
+      padding: 5px 15px;
+    }
   </style>
 </head>
 <body>
@@ -35,13 +50,20 @@
   <div class="container">
     <!-- 下一个方块预览区 -->
     <div class="preview">
-      <h3>新一群同学</h3>
+      <h3>下一个方块</h3>
       <pre id="next"></pre>
     </div>
     <!-- 游戏区域 -->
     <div class="game-area">
       <pre id="game"></pre>
     </div>
+  </div>
+  <!-- 底部按钮区 -->
+  <div class="controls">
+    <button id="btnLeft">左</button>
+    <button id="btnRight">右</button>
+    <button id="btnUp">上</button>
+    <button id="btnDown">下</button>
   </div>
   <script>
     // 游戏区域尺寸
@@ -161,13 +183,13 @@
       let display = "";
       // 每个格子宽度为2个字符，所以边框宽度为 COLS * 2
       const borderLine = "+" + "黑板".repeat(COLS) + "+\n";
-      const borderLine2 = "+" + "-".repeat(COLS -1 ) +"钟"+  "-".repeat(COLS -1 ) + "+\n";
+      const borderLine2 = "+" + "-".repeat(COLS - 1) + "钟" + "-".repeat(COLS - 1) + "+\n";
 
       display += borderLine;
       // 计算当前活动方块位置，避免每次循环重复计算
       let pieceBlocks = getPieceBlocks(currentPiece);
       for (let y = 0; y < ROWS; y++) {
-        if (y <= 3 || y == ROWS - 1) display += "门";
+        if (y <= 3 || y === ROWS - 1) display += "门";
         else display += "墙";
         for (let x = 0; x < COLS; x++) {
           // 判断当前位置是否被当前活动方块占用
@@ -201,7 +223,6 @@
       for (let y = 0; y < previewSize; y++) {
         let row = "";
         for (let x = 0; x < previewSize; x++) {
-          // 如果预览方块在经过偏移后占据该单元，则显示“人”
           let found = blocks.some(b => (b[0] + offsetX === x) && (b[1] + offsetY === y));
           row += found ? "人" : "  ";
         }
@@ -210,13 +231,50 @@
       document.getElementById("next").textContent = preview.join("\n");
     }
 
+    // 将键盘及按钮操作的逻辑封装到此函数中
+    function movePiece(direction) {
+      let newPos;
+      if (direction === "ArrowLeft") {
+        newPos = { ...currentPiece, x: currentPiece.x - 1 };
+        if (isValidPosition(newPos)) currentPiece.x--;
+      } else if (direction === "ArrowRight") {
+        newPos = { ...currentPiece, x: currentPiece.x + 1 };
+        if (isValidPosition(newPos)) currentPiece.x++;
+      } else if (direction === "ArrowDown") {
+        newPos = { ...currentPiece, y: currentPiece.y + 1 };
+        if (isValidPosition(newPos)) currentPiece.y++;
+      } else if (direction === "ArrowUp") {
+        newPos = { ...currentPiece, rotation: currentPiece.rotation + 1 };
+        if (isValidPosition(newPos)) currentPiece.rotation++;
+      }
+      draw();
+    }
+
+    // 键盘控制：调用 movePiece() 处理左右上下及旋转
+    document.addEventListener("keydown", function(e) {
+      movePiece(e.key);
+    });
+
+    // 为底部按钮绑定点击事件
+    document.getElementById("btnLeft").addEventListener("click", function() {
+      movePiece("ArrowLeft");
+    });
+    document.getElementById("btnRight").addEventListener("click", function() {
+      movePiece("ArrowRight");
+    });
+    document.getElementById("btnUp").addEventListener("click", function() {
+      movePiece("ArrowUp");
+    });
+    document.getElementById("btnDown").addEventListener("click", function() {
+      movePiece("ArrowDown");
+    });
+
     // 每个时间间隔执行一次，尝试将当前方块下移一步
     function tick() {
       let newPos = { ...currentPiece, y: currentPiece.y + 1 };
       if (isValidPosition(newPos)) {
         currentPiece.y++;
       } else {
-        // 无法下移时固定方块，并清除满行，再生成新方块
         fixPiece();
         clearLines();
         newPiece();
@@ -235,25 +293,6 @@
       draw();
       drawNext();
     }
-
-    // 键盘控制：← → 控制左右移动，↑ 控制旋转，↓ 加速下落
-    document.addEventListener("keydown", function(e) {
-      let newPos;
-      if (e.key === "ArrowLeft") {
-        newPos = { ...currentPiece, x: currentPiece.x - 1 };
-        if (isValidPosition(newPos)) currentPiece.x--;
-      } else if (e.key === "ArrowRight") {
-        newPos = { ...currentPiece, x: currentPiece.x + 1 };
-        if (isValidPosition(newPos)) currentPiece.x++;
-      } else if (e.key === "ArrowDown") {
-        newPos = { ...currentPiece, y: currentPiece.y + 1 };
-        if (isValidPosition(newPos)) currentPiece.y++;
-      } else if (e.key === "ArrowUp") {
-        newPos = { ...currentPiece, rotation: currentPiece.rotation + 1 };
-        if (isValidPosition(newPos)) currentPiece.rotation++;
-      }
-      draw();
-    });
 
     // 初始化绘制
     draw();
