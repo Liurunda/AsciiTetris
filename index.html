@@ -18,9 +18,13 @@
     .container {
       display: flex;
       justify-content: center;
-      margin-bottom: 80px; /* 为底部按钮留出空间 */
+      align-items: flex-start;
+      flex-wrap: wrap;
     }
-    .preview, .game-area {
+    .preview {
+      margin: 10px;
+    }
+    .game-area {
       margin: 10px;
     }
     pre {
@@ -29,14 +33,9 @@
       margin: 0 auto;
       white-space: pre;
     }
-    /* 固定在屏幕底部的按钮区 */
+    /* 修改后的按钮区样式，放置在游戏区域下方 */
     .controls {
-      position: fixed;
-      bottom: 0;
-      width: 100%;
-      text-align: center;
-      background: #222;
-      padding: 10px 0;
+      margin-top: 10px;
     }
     .controls button {
       font-size: 20px;
@@ -53,17 +52,16 @@
       <h3>下一个方块</h3>
       <pre id="next"></pre>
     </div>
-    <!-- 游戏区域 -->
+    <!-- 游戏区域与按钮 -->
     <div class="game-area">
       <pre id="game"></pre>
+      <div class="controls">
+        <button id="btnLeft">左</button>
+        <button id="btnRight">右</button>
+        <button id="btnUp">上</button>
+        <button id="btnDown">下</button>
+      </div>
     </div>
-  </div>
-  <!-- 底部按钮区 -->
-  <div class="controls">
-    <button id="btnLeft">左</button>
-    <button id="btnRight">右</button>
-    <button id="btnUp">上</button>
-    <button id="btnDown">下</button>
   </div>
   <script>
     // 游戏区域尺寸
@@ -231,7 +229,7 @@
       document.getElementById("next").textContent = preview.join("\n");
     }
 
-    // 将键盘及按钮操作的逻辑封装到此函数中
+    // 封装键盘和按钮操作的逻辑
     function movePiece(direction) {
       let newPos;
       if (direction === "ArrowLeft") {
@@ -255,7 +253,7 @@
       movePiece(e.key);
     });
 
-    // 为底部按钮绑定点击事件
+    // 为按钮绑定点击事件
     document.getElementById("btnLeft").addEventListener("click", function() {
       movePiece("ArrowLeft");
     });
